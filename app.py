@@ -1,10 +1,76 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 import osmnx as ox
 import networkx as nx
 import requests
 import time
+import os
+from models import init_db, ajouter_utilisateur, recuperer_utilisateurs, supprimer_utilisateur_bd, verifier_login  # Import des fonctions DB
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Clé secrète pour les sessions
+
+# Initialiser la base de données et ajouter les personnages des Simpsons
+init_db()
+
+# Route pour la page de connexion
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        utilisateur = verifier_login(email, password)
+        
+        if utilisateur:
+            session['user_id'] = utilisateur[0]
+            session['user_name'] = utilisateur[1]
+            return redirect(url_for('index'))
+        else:
+            flash('Email ou mot de passe incorrect', 'danger')
+    
+    return render_template('login.html')
+
+# Route pour déconnecter l'utilisateur
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# Protection de la route
+def login_required(f):
+    def wrap(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    wrap.__name__ = f.__name__
+    return wrap
+
+# Formulaire pour ajouter un utilisateur
+@app.route('/add_user', methods=['GET', 'POST'])
+@login_required
+def add_user():
+    if request.method == 'POST':
+        nom = request.form['nom']
+        email = request.form['email']
+        password = request.form['password']  # Récupération du champ password
+        ajouter_utilisateur(nom, email, password)
+        return redirect(url_for('list_users'))
+    return render_template('add_user.html')
+
+# Route pour lister les utilisateurs
+@app.route('/users')
+@login_required
+def list_users():
+    utilisateurs = recuperer_utilisateurs()
+    return render_template('list_users.html', utilisateurs=utilisateurs)
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    supprimer_utilisateur_bd(user_id)  # Appel à la fonction dans models.py
+    flash('Utilisateur supprimé avec succès.', 'success')
+    return redirect(url_for('list_users'))
+
+
 
 # URL de l'API JCDecaux
 API_URL = 'https://api.jcdecaux.com/vls/v1/stations?contract=nancy&apiKey=3993633e26d5c2fef3ff02b5273e99e26ffed693'
@@ -68,6 +134,7 @@ def recuperer_stations():
 
 # Route pour afficher la page principale avec la carte
 @app.route('/')
+@login_required
 def index():
     stations_surcharges, stations_sous_alimentees, stations_normales = recuperer_stations()
     return render_template('index.html',
@@ -77,6 +144,7 @@ def index():
 
 # API pour récupérer les stations de vélos au format JSON (utile pour AJAX)
 @app.route('/api/stations')
+@login_required
 def api_stations():
     stations_surcharges, stations_sous_alimentees, stations_normales = recuperer_stations()
 
@@ -90,6 +158,7 @@ def api_stations():
 
 # API pour calculer l'itinéraire
 @app.route('/api/itineraire/<float:lat1>/<float:lon1>/<float:lat2>/<float:lon2>', methods=['POST'])
+@login_required
 def calculer_itineraire(lat1, lon1, lat2, lon2):
     data = request.get_json()
     mode_deplacement = data.get('mode')
@@ -119,7 +188,6 @@ def calculer_itineraire(lat1, lon1, lat2, lon2):
         return jsonify({"chemin": chemin_coords, "distance": distance, "instructions": instructions})
     except nx.NetworkXNoPath:
         return jsonify({"error": "Pas de chemin trouvé"}), 400
-
 
 
 if __name__ == '__main__':
