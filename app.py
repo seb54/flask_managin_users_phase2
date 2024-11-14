@@ -6,6 +6,7 @@ import time
 import os
 from models import init_db, ajouter_utilisateur, recuperer_utilisateurs, supprimer_utilisateur_bd, verifier_login  # Import des fonctions DB
 
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Clé secrète pour les sessions
 
@@ -51,10 +52,21 @@ def add_user():
     if request.method == 'POST':
         nom = request.form['nom']
         email = request.form['email']
-        password = request.form['password']  # Récupération du champ password
+        password = request.form['password']
+        password_confirm = request.form['password_confirm']  # Récupération du second mot de passe
+
+        # Vérification que les deux mots de passe correspondent
+        if password != password_confirm:
+            flash('Les mots de passe ne correspondent pas', 'danger')
+            return redirect(url_for('add_user'))
+
+        # Ajouter l'utilisateur si les mots de passe correspondent
         ajouter_utilisateur(nom, email, password)
+        flash('Utilisateur ajouté avec succès', 'success')
         return redirect(url_for('list_users'))
+
     return render_template('add_user.html')
+
 
 # Route pour lister les utilisateurs
 @app.route('/users')

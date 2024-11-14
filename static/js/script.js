@@ -12,6 +12,32 @@ var currentSurchargeLat = null;
 var currentSurchargeLon = null;
 var stationMarkers = {};  // Stocke les marqueurs des stations par ID
 
+// Fonction pour afficher une notification temporaire
+function showNotification(stationName, bikeChange) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerHTML = `🚲 ${Math.abs(bikeChange)} vélo(s) ${bikeChange > 0 ? 'ajouté(s)' : 'retiré(s)'} à la station ${stationName}`;
+
+    // Style de la notification
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.padding = '10px';
+    notification.style.backgroundColor = bikeChange > 0 ? '#4CAF50' : '#FF6347';  // Vert si ajouté, rouge si retiré
+    notification.style.color = 'white';
+    notification.style.borderRadius = '5px';
+    notification.style.zIndex = '1000';
+    notification.style.boxShadow = '0px 0px 10px rgba(0, 0, 0, 0.1)';
+    
+    document.body.appendChild(notification);
+
+    // Supprimer la notification après 3 secondes
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+
 // Charger les stations de l'API et mettre à jour la date de mise à jour
 function loadStationsAndUpdateTime() {
     fetch('/api/stations')
@@ -34,20 +60,26 @@ function loadStationsAndUpdateTime() {
             const formattedDate = currentDate.toLocaleString();
             document.getElementById('last-updated').textContent = `Dernière mise à jour : ${formattedDate}`;
 
-            // Vérifier les mises à jour des stations et ajouter un clignotement si un vélo est retiré ou ajouté
+            // Vérifier les mises à jour des stations et afficher une notification en cas d'ajout ou de retrait de vélos
             data.surcharges.concat(data.sous_alimentees, data.normales).forEach(station => {
                 if (stationMarkers[station.id]) {
                     var previousAvailableBikes = stationMarkers[station.id].available_bikes;
                     if (previousAvailableBikes !== station.available_bikes) {
                         const bikeChange = station.available_bikes - previousAvailableBikes;
+
+                        // Afficher la notification
+                        showNotification(station.name, bikeChange);
+
+                        // Appeler les fonctions d'animation
                         flashStationMarker(stationMarkers[station.id]);
                         displayStationUpdateMessage(station.name, station.available_bikes, previousAvailableBikes);
-                        displayBikeChangeAnimation(stationMarkers[station.id], bikeChange);  // Appeler l'animation
+                        displayBikeChangeAnimation(stationMarkers[station.id], bikeChange);
                     }
                 }
             });
         });
 }
+
 
 
 // Fonction pour ajouter des stations sur la carte
@@ -228,5 +260,5 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Recharger les stations et l'heure de mise à jour toutes les minutes
-    setInterval(loadStationsAndUpdateTime, 60000);
+    setInterval(loadStationsAndUpdateTime, 3000);
 });

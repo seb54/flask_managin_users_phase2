@@ -19,3 +19,15 @@
     100% { opacity: 0; transform: translateY(-10px); }
 }
 
+.notification {
+    font-size: 16px;
+    font-weight: bold;
+    animation: fadeInOut 3s;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { opacity: 0; }
+}
